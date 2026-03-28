@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile inkcut/device/plugin.py)",
+      "Bash(python -m py_compile inkcut/device/transports/serialport/plugin.py)",
+      "Bash(python -m py_compile inkcut/device/transports/raw/plugin.py)",
+      "Bash(python3 -m py_compile inkcut/device/plugin.py)",
+      "Bash(python3 -m py_compile inkcut/device/transports/serialport/plugin.py)",
+      "Bash(python3 -m py_compile inkcut/device/transports/raw/plugin.py)"
+    ]
+  }
+}

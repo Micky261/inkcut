@@ -105,7 +105,7 @@ class TestTransport(DeviceTransport):
         self.protocol.connection_made()
 
     def write(self, data):
-        log.debug("-> Test | {}".format(data))
+        log.warning("-> Test (virtual) | {}".format(data))
 
         #: Python 3 is annoying
         if hasattr(data, 'encode'):
@@ -468,6 +468,8 @@ class Device(Model):
         try:
             #: Create a test connection if necessary
             if test:
+                log.warning("device | Using VIRTUAL connection (test_mode=True)"
+                            " - no data will be sent to the actual device!")
                 self.connection = TestTransport(
                     protocol=connection.protocol,
                     declaration=connection.declaration
@@ -604,12 +606,16 @@ class Device(Model):
                 completion before continuing.
 
         """
-        log.debug("device | connect")
+        conn_type = type(self.connection).__name__
+        log.info("device | connect via {} ({})".format(
+            conn_type, getattr(self.connection, 'device_path', 'N/A')))
         if self.connection.connected:
             log.debug("device | already connected")
             log.debug(traceback.format_stack())
             return
         yield defer.maybeDeferred(self.connection.connect)
+        log.info("device | connected successfully (connected={})"
+                 .format(self.connection.connected))
         cmd = self.config.commands_connect
         if cmd:
             yield defer.maybeDeferred(self.connection.write, cmd)

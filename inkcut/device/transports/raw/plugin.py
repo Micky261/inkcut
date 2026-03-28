@@ -92,11 +92,16 @@ class RawFdTransport(DeviceTransport):
     def write(self, data):
         if not self.connection:
             raise IOError("{} is not opened".format(self.device_path))
-        log.debug("-> {} | {}".format(self.device_path, data))
         if hasattr(data, 'encode'):
             data = data.encode()
-        self.last_write = data
-        self.connection.write(data)
+        try:
+            self.connection.write(data)
+            self.last_write = data
+            log.debug("-> {} | {}".format(self.device_path, data))
+        except Exception as e:
+            log.error("-> {} | write FAILED: {}".format(
+                self.device_path, e))
+            raise
 
     def disconnect(self):
         if self.connection:

@@ -76,6 +76,11 @@ class SerialTransport(RawFdTransport):
     def connect(self):
         config = self.config
         self.device_path = config.port
+
+        if not config.port:
+            raise IOError("No serial port configured! Please select a port "
+                          "in Device Setup.")
+
         try:
             #: Save a reference
             self.protocol.transport = self
@@ -103,12 +108,67 @@ class SerialTransport(RawFdTransport):
                     log.warning("{} | dsrdtr is not supported {}".format(
                         config.port, e))
 
-            log.debug("{} | opened".format(config.port))
+            # Verify the underlying serial port is actually open
+            try:
+                ser = self.connection._serial
+                if not ser.is_open:
+                    raise IOError(
+                        "Serial port {} failed to open".format(config.port))
+                log.info("{} | opened (baudrate={}, bytesize={}, parity={}, "
+                         "stopbits={}, xonxoff={}, rtscts={}, dsrdtr={})".format(
+                             config.port, config.baudrate, config.bytesize,
+                             config.parity, config.stopbits, config.xonxoff,
+                             config.rtscts, config.dsrdtr))
+            except AttributeError:
+                # Fallback if _serial is not accessible
+                log.info("{} | opened".format(config.port))
+        except serial.SerialException as e:
+            log.error("{} | Serial error: {}".format(config.port, e))
+            raise
         except Exception as e:
             #: Make sure to log any issues as these tracebacks can get
             #: squashed by twisted
             log.error("{} | {}".format(config.port, traceback.format_exc()))
             raise
+
+    def write(self, data):
+        """ Write data and flush to ensure it is actually sent to the
+        device immediately rather than sitting in a buffer.
+        """
+        if not self.connection:
+            raise IOError("{} is not opened".format(self.device_path))
+        if hasattr(data, 'encode'):
+            data = data.encode()
+        try:
+            self.connection.write(data)
+            # Force flush the underlying serial port buffer to ensure
+            # data is physically transmitted
+            try:
+                self.connection._serial.flush()
+            except (AttributeError, serial.SerialException):
+                pass
+            self.last_write = data
+            log.debug("-> {} | {}".format(self.device_path, data))
+        except serial.SerialException as e:
+            self.connected = False
+            log.error("-> {} | write FAILED (connection lost?): {}".format(
+                self.device_path, e))
+            raise
+        except Exception as e:
+            log.error("-> {} | write FAILED: {}".format(
+                self.device_path, e))
+            raise
+
+    def disconnect(self):
+        if self.connection:
+            # Flush any remaining data before closing
+            try:
+                self.connection._serial.flush()
+            except (AttributeError, serial.SerialException):
+                pass
+            log.info("{} | closed by request".format(self.device_path))
+            self.connection.loseConnection()
+            self.connection = None
 
 
 class SerialPlugin(Plugin):
